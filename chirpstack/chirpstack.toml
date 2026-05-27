@@ -1,0 +1,54 @@
+# ChirpStack Network Server v4 configuration
+
+[logging]
+  level = "info"
+
+[postgresql]
+  dsn = "postgresql://linkEdge:changeme@postgres/linkEdge?sslmode=disable"
+  max_open_connections = 10
+  min_idle_connections = 0
+
+[redis]
+  servers = ["redis://redis/"]
+  cluster  = false
+
+[network]
+  net_id = "000000"
+  # Add / remove regions to match your hardware (eu868, us915_0 … us915_7, au915, as923, etc.)
+  enabled_regions = [
+    "eu868",
+    "us915_0",
+  ]
+  device_session_ttl  = "744h0m0s"
+  deduplication_delay = "200ms"
+
+[api]
+  bind   = "0.0.0.0:8080"
+  # Change before exposing to the network
+  secret = "you-must-replace-this-secret"
+
+[gateway]
+  # Set to true to accept packets from gateways not registered in ChirpStack
+  allow_unknown_gateways = false
+
+  [gateway.backend]
+    enabled = "mqtt"
+
+    [gateway.backend.mqtt]
+      server                 = "tcp://mosquitto:1883"
+      username               = ""
+      password               = ""
+      event_topic            = "eu868/gateway/+/event/+"
+      command_topic_template = "eu868/gateway/{{ .GatewayID }}/command/{{ .CommandType }}"
+
+# Application-level MQTT integration — hub subscribes to these topics
+[integration]
+  enabled = ["mqtt"]
+
+  [integration.mqtt]
+    server                 = "tcp://mosquitto:1883"
+    username               = ""
+    password               = ""
+    event_topic_template   = "application/{{ .ApplicationID }}/device/{{ .DevEUI }}/event/{{ .EventType }}"
+    command_topic_template = "application/{{ .ApplicationID }}/device/{{ .DevEUI }}/command/{{ .CommandType }}"
+    json                   = true
