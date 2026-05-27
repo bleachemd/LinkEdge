@@ -1,0 +1,112 @@
+version: "3.8"
+
+services:
+  # time series database 
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-linkEdge}
+      POSTGRES_USER: ${POSTGRES_USER:-linkEdge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgresql/init.sql:/docker-entrypoint-initdb.d/10_init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-linkEdge} -d ${POSTGRES_DB:-linkEdge}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # in memory queue (retry buffer) 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  #MQTT broker 
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    ports:
+      - "1883:1883"    # MQTT
+      - "9001:9001"    # MQTT over WebSocket
+
+  #lorawan gateway bridge (Semtech UDP → MQTT) 
+  chirpstack-gateway-bridge:
+    image: chirpstack/chirpstack-gateway-bridge:4
+    restart: unless-stopped
+    ports:
+      - "1700:1700/udp"    # Semtech UDP packet-forwarder
+    volumes:
+      - ./chirpstack/chirpstack-gateway-bridge.toml:/etc/chirpstack-gateway-bridge/chirpstack-gateway-bridge.toml:ro
+    depends_on:
+      - mosquitto
+
+  #LoraWAN network server 
+  chirpstack:
+    image: chirpstack/chirpstack:4
+    restart: unless-stopped
+    command: -c /etc/chirpstack
+    volumes:
+      - ./chirpstack:/etc/chirpstack:ro
+    ports:
+      - "8080:8080"    # ChirpStack web UI 
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+
+  # LinkEdge hub (FastAPI) 
+  hub:
+    build:
+      context: ./hub
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://${POSTGRES_USER:-linkEdge}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-linkEdge}"
+      REDIS_URL: "redis://redis:6379/0"
+      MQTT_HOST: "mosquitto"
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: "${MQTT_USERNAME:-}"
+      MQTT_PASSWORD: "${MQTT_PASSWORD:-}"
+      MQTT_UPLINK_TOPIC: "${MQTT_UPLINK_TOPIC:-application/+/device/+/event/up}"
+      HUB_SECRET_KEY: "${HUB_SECRET_KEY:-change-me-in-production}"
+      EXPORT_BATCH_SIZE: "${EXPORT_BATCH_SIZE:-50}"
+      EXPORT_RETRY_INTERVAL: "${EXPORT_RETRY_INTERVAL:-30}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+    volumes:
+      - ./hub/device_profiles:/app/device_profiles:ro
+    ports:
+      - "8000:8000"    # REST API + WebSocket
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  redis_data:
+  mosquitto_data:
+  mosquitto_logs:
