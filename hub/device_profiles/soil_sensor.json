@@ -1,0 +1,66 @@
+{
+  "profile_id": "soil_sensor_v1",
+  "name": "Soil Sensor v1",
+  "description": "JSON payload covering pH, temperature, volumetric moisture, electrical conductivity, soil gas composition, and vibroacoustic structure analysis.",
+  "decoder": {
+    "type": "json"
+  },
+  "validation": {
+    "rules": [
+      {
+        "field": "ph",
+        "min": 0,
+        "max": 14,
+        "not_null": true
+      },
+      {
+        "field": "temperature_c",
+        "min": -40,
+        "max": 85,
+        "not_null": true
+      },
+      {
+        "field": "moisture_pct",
+        "min": 0,
+        "max": 100,
+        "not_null": true
+      },
+      {
+        "field": "ec_us_cm",
+        "min": 0,
+        "max": 20000,
+        "not_null": true
+      },
+      {
+        "field": "co2_ppm",
+        "min": 300,
+        "max": 50000
+      },
+      {
+        "field": "o2_pct",
+        "min": 0,
+        "max": 21
+      },
+      {
+        "field": "ch4_ppm",
+        "min": 0,
+        "max": 5000
+      },
+      {
+        "field": "n2o_ppb",
+        "min": 0,
+        "max": 2000
+      },
+      {
+        "field": "vibro_dominant_freq_hz",
+        "min": 0,
+        "max": 20000
+      },
+      {
+        "field": "vibro_amplitude_db",
+        "min": -120,
+        "max": 0
+      }
+    ]
+  }
+}
