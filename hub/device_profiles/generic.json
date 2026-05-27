@@ -1,0 +1,11 @@
+{
+  "profile_id": "generic",
+  "name": "Generic / Pass-through",
+  "description": "No binary decoding. Accepts any pre-decoded JSON or passes raw payload hex through unchanged.",
+  "decoder": {
+    "type": "passthrough"
+  },
+  "validation": {
+    "rules": []
+  }
+}
